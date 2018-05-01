@@ -1,0 +1,174 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{subcaption}
+\graphicspath{{Images/}}
+
+\newcommand\tab[1][1cm]{\hspace*{#1}}
+
+\title{Utilizing Logistic Regression and ILPD (Instruction Level Power Discrimination) in Analysis of Waveform Data}
+\author{Jonathan Krzesniak}
+\date{April 30th, 2018}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+\tab    
+Instruction Level Power Discrimination (hereby referred to as ILPD) is a side-channel analysis technique being developed to discriminate between instruction set architecture (ISA) instructions executing in real-time on a processor or microcontroller. For our purposes the microcontroller being examined is the TI MSP430F2619 16-bit MCU. “ILPD trains machine learning algorithms to detect unique features within the power consumption profiles of individual ISA instructions. Once the training is complete, the machine learning algorithms are applied to power consumption signatures obtained in real-time to reconstruct elements of the executing program (Duncan).” I have attempted to use the Logistic Regression algorithm supplied by the package scikitlearn using python 3.6 and met minor success. 
+
+\section{Data Collection} 
+\tab 
+	Firstly, in order to operate on data, data must be obtained. I decided to use my personal research interests to gather the data I wanted in lieu of garnering it from an online source. “Errors using inadequate data are much less than those using no data at all” (Charles Babbage). I found that using data that I had collected myself allowed me a greater degree of autonomy and creativity, as well as a better understanding of how the data had been processed before being used.
+	
+
+	Data collection was performed using an oscilloscope with an EM probe. The EM probe allowed us to measure the current passing through a filter soldered to the MSP430 (displayed as voltage over time on the oscilloscope). This data was saved as csv files to the oscilloscope, which were then transferred to my personal machine.
+	
+\begin{figure}
+    \centering
+    \includegraphics[width = \textwidth]{Capture}
+    \caption{The machine instruction loop can be seen above. Line 67 is changed depending upon the instruction (\textit{i.e. XOR, AND, ADD, etc.)}.}
+    \label{fig:my_label}
+\end{figure}
+	
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{Power_signals.png}
+    \caption{These are two different programs consisting of XOR and AND, respectively, visualized on the oscilloscope along with  labels detailing the individual instructions.}
+    \label{fig:my_label}
+\end{figure}
+
+
+\section{Parsing the Data}
+
+\tab Parsing the data proved somewhat tedious since each csv file consisted of 125000 points (x,y). A Ph.D student working on the ILPD, Adam Barker, had written a parser and constructor for sifting through the data set which I utilized. The waveform data was converted into an array and then fitted accordingly.  A plotter written by Barker in Python was used to plot the data with matplotlib.
+
+    \begin{figure}[h]
+        \centering
+        \includegraphics[width = \textwidth]{xor_waveform.png}
+        \caption{A non-averaged, single sample XOR loop signal plotted with Barker's plotter.}
+        \label{fig:my_label}
+    \end{figure}
+
+\par Due the large amount of fluctuation from point to point exemplified in Figure 3, the data for each individual instruction loop varied widely. I also had access to averaged waveforms of 100 samples, which are much less noisy and compose a consistent data set. 
+
+\begin{figure}[h]
+        \centering
+        \includegraphics[width = \textwidth]{xor_average.png}
+        \caption{An averaged XOR instruction loop (Note: The 2 images displayed above are scaled differently on the vertical axis).}
+        \label{fig:my_label}
+    \end{figure}
+
+\section{Training Logistic Regression}
+
+I decided to use Logistic Regression supplied by the scikitlearn library to make predictions based on my data set. \\To train the algorithm, I used data we had collected and compiled in the ILPD GitHub page. The data consisted of 3 folders each containing about 100 single samples of a specific instruction loop. I also input an array of labels consisting of "1", "2", and "3" matched with the signals "AND", "ADD", and "XOR" respectively. I was able to load the data and parse it with Barker's programs. 
+\\
+\par Below is snippet of my program which loads all of the training data with the ILPD Constructor() and parses the data with ILPD Parser(). The data is then trained with the Logistic Regression algorithm and a signal is predicted.
+
+\begin{lstlisting}[language=Python]
+
+import numpy as np
+from ilpd_parser import ILPD_Parser
+from ilpd_constructor import ILPD_Constructor
+from os import listdir
+from os.path import isfile, join
+from sklearn.linear_model import LogisticRegression
+
+# instantiate logistic regression object
+LR = LogisticRegression()  
+
+ILPD=ILPD_Constructor()
+
+ILPD.load_files()
+
+LR.fit(ILPD.data_array[:,:], ILPD.label_array)
+
+# BEGIN PREDICTION OF "AND" SIGNAL 
+
+#load csv file from directory 
+csvand=[f for f in listdir(r"C:\Users\user\...)]
+
+and_array=np.empty((125000,1))
+
+Parse=ILPD_Parser(r"C:\Users\user\Documents\...)
+
+and_array[:,0]=np.array(Parse.parse())
+
+#transpose matrix to fit model
+and_array=np.transpose(and_array)
+
+print(LR.predict(and_array))
+print("This should be label: 1")
+
+\end{lstlisting}
+
+Console output:
+\begin{lstlisting}[language=bash]
+[ 3.]
+This should be label: 1
+\end{lstlisting}
+
+It should be noted the algorithm was trained with the single sample and acquisition data set. I also attempted to predict both these types of signals and the averaged samples. I obtained the same results with both the single sample AND as well as the averaged AND (the results being that the algorithm wrongly predicted them as XOR). This could be due to several factors.
+\begin{itemize}
+  \item Not enough or too many parameters for the algorithm to process efficiently.
+  \item An error during data collection where data was taken incorrectly or labeled wrongly. 
+  \item Too small of a sample set. May need more data.
+\end{itemize}
+
+I did, however, predict an averaged XOR sample correctly. The XOR and AND signals are plotted below:
+
+\begin{figure}[h]
+    \begin{subfigure}{0.5\textwidth}
+    \includegraphics[width=\linewidth, height=3cm]{xor_average}
+    \caption{XOR signal}
+    \label{fig:subim1}
+    \end{subfigure}
+    \begin{subfigure}{0.5\textwidth}
+    \includegraphics[width=\linewidth, height=3cm]{and_average}
+    \caption{AND signal}
+    \label{fig:subim2}
+    \end{subfigure}
+ 
+\caption{XOR signal (left) compared with AND signal (right). Notice they look nearly identical to the naked eye.}
+\label{fig:image2}
+\end{figure}
+
+There may be a data collection issue, and these signals \emph{may be the same signal}. More data would have to be collected to determine this. Transformations that could me made to the data include Fourier Transforms and further signal processing. There are likely characteristic points within the data that could be found to be deterministic of a signal, which would require a deeper analysis of our waveform data.
+
+\section{Docker Implementation}
+
+Following Vibhatha's tutorial, I created a makefile and dockerfile that launched a docker r with my main.py. 
+
+My Dockerfile is as follows:
+
+\begin{lstlisting}[language=python]
+# Python base image
+FROM python:3.6.3
+
+RUN apt-get update
+
+# Where the API server lives
+WORKDIR /app/
+
+# Install required dependencies
+COPY requirements.txt /app/
+RUN pip install -r ./requirements.txt
+
+# API server
+COPY api.py /app/
+
+# Container port on which the server will be listening
+EXPOSE 7777
+
+CMD ["make", "run"]
+\end{lstlisting}
+
+\section{Conclusion}
+
+I succeeded in implementing a Logistic Regression algorithm in the cloud despite bad results from the program. The poor results could have resulted from a bad implementation, faulty data, or that my data is simply hard to train the algorithm with. 
+
+\end{document}
