@@ -1,0 +1,90 @@
+"""
+@author = Adam Barker
+"""
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Apr 26 14:22:36 2018
+
+@author: jonkr
+"""
+
+import numpy as np
+
+import matplotlib.pyplot as plt
+
+#import matplotlib.pyplot as plt
+
+
+
+class ILPD_Parser():
+
+	"""parses an oscope file Assumes first column is time (seconds) and second column is voltage (volts)
+
+
+
+	Removes header information from the CSV file as well.  In order for OScope_Plot to run you must
+
+	first call parse()"""
+
+
+
+	def __init__(self, Oscope_file):
+
+
+
+		self.Oscope_file = Oscope_file
+      
+        
+		return
+
+
+
+	def parse(self):
+
+		try:
+
+			OScope_Output = np.loadtxt(open(self.Oscope_file), delimiter=",", skiprows=9) #first 9 rows are header info
+
+
+
+			self.Convert_to_us = OScope_Output[:,0]*1000000
+
+
+
+			self.Convert_to_mv = OScope_Output[:,1]*1000
+
+
+
+			OScope_Output_data = OScope_Output[:,1] #only keeps the voltage data
+
+		except:
+
+			print(" File not found or it is an invalid file type!")
+
+
+
+		return OScope_Output_data
+
+
+
+	def OScope_Plot(self):
+
+		"""plots the output"""
+
+
+
+		plt.figure(figsize=(12,4))
+
+		plt.plot(self.Convert_to_us,self.Convert_to_mv, linewidth=.5)
+
+		plt.xlabel('Microseconds')
+
+		plt.ylabel('MilliVolts')
+
+		plt.axis([-2.0, 17.75, -1.5, 1.5]) #axis takes form of (xmin, xmax, ymin, ymax)
+
+		plt.title(self.Oscope_file)
+
+		plt.show()
+
+		return
